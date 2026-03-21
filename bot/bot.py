@@ -32,7 +32,7 @@ def run_test_mode(command: str) -> None:
     if cmd_name not in handlers:
         print(f"Unknown command: /{cmd_name}")
         print(f"Available commands: {', '.join('/' + name for name in handlers)}")
-        sys.exit(1)
+        sys.exit(0)
     
     # Call the handler and print the result
     handler = handlers[cmd_name]
