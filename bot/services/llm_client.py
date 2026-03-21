@@ -60,7 +60,11 @@ class LLMClient:
                     "You have access to tools that fetch data about labs, students, scores, and analytics. "
                     "When the user asks a question, use the available tools to get the data. "
                     "Always call tools when you need data — don't guess. "
-                    "After receiving tool results, synthesize them into a clear, helpful answer. "
+                    "IMPORTANT: For questions that require comparing multiple labs or gathering data from multiple sources, "
+                    "call ALL the tools you need FIRST, then synthesize the results into a final answer. "
+                    "Do NOT give a final answer until you have collected all the necessary data. "
+                    "Keep calling tools until you have enough information to answer completely. "
+                    "Only return a text response (no tool calls) when you are ready with the complete answer. "
                     "If the user's message is unclear or ambiguous, ask for clarification. "
                     "If the user greets you, respond warmly and mention what you can help with."
                 ),
@@ -69,7 +73,7 @@ class LLMClient:
         ]
 
         # Tool-calling loop
-        max_iterations = 5  # Prevent infinite loops
+        max_iterations = 15  # Allow enough iterations for multi-lab comparisons
         iteration = 0
 
         async with httpx.AsyncClient(timeout=self.timeout) as http_client:
