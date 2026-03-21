@@ -1,10 +1,13 @@
-"""Command handlers - plain functions that return strings.
+"""Command handlers - async functions that return strings.
 
-These handlers don't depend on Telegram. They can be called from:
+These handlers fetch real data from the LMS API. They can be called from:
 - --test mode (CLI)
 - Unit tests
-- Telegram bot (when we add aiogram integration)
+- Telegram bot (aiogram integration)
 """
+
+import asyncio
+from services.lms_client import LMSClient
 
 
 def start() -> str:
@@ -24,25 +27,73 @@ def help() -> str:
     )
 
 
-def health() -> str:
+async def health() -> str:
     """Handle /health command."""
-    # TODO: Actually check LMS API connection
-    return "Bot is running. LMS API status: not implemented yet."
+    client = LMSClient()
+    items = await client.get_items()
+
+    if isinstance(items, str):
+        return f"Bot is running. LMS API error: {items}"
+
+    return f"Bot is running. LMS API: connected ({len(items)} items available)."
 
 
-def labs() -> str:
+async def labs() -> str:
     """Handle /labs command."""
-    # TODO: Fetch labs from LMS API
-    return "Available labs: not implemented yet."
+    client = LMSClient()
+    items = await client.get_items()
+
+    if isinstance(items, str):
+        return f"Error fetching labs: {items}"
+
+    if not items:
+        return "No labs available."
+
+    # Format lab list from items
+    lab_names = [item.get("name", item.get("id", "Unknown")) for item in items]
+    return "Available labs:\n" + "\n".join(f"- {name}" for name in lab_names)
 
 
-def scores(lab: str | None = None) -> str:
+async def scores(lab: str | None = None) -> str:
     """Handle /scores command.
-    
+
     Args:
         lab: Optional lab identifier. If None, shows all scores.
     """
-    # TODO: Fetch scores from LMS API
+    client = LMSClient()
+
     if lab:
-        return f"Scores for lab '{lab}': not implemented yet."
-    return "Your scores: not implemented yet."
+        rates = await client.get_pass_rates(lab)
+        if isinstance(rates, str):
+            return f"Error fetching scores for '{lab}': {rates}"
+
+        # Format pass rates
+        if isinstance(rates, dict):
+            lines = [f"Pass rates for '{lab}':"]
+            for key, value in rates.items():
+                lines.append(f"  {key}: {value}")
+            return "\n".join(lines)
+        return f"Pass rates for '{lab}': {rates}"
+
+    # Show all labs' scores
+    items = await client.get_items()
+    if isinstance(items, str):
+        return f"Error fetching labs: {items}"
+
+    if not items:
+        return "No labs available."
+
+    results = ["Your scores:"]
+    for item in items:
+        lab_id = item.get("id", "unknown")
+        lab_name = item.get("name", lab_id)
+        rates = await client.get_pass_rates(lab_id)
+        if isinstance(rates, str):
+            results.append(f"  {lab_name}: error")
+        elif isinstance(rates, dict):
+            pass_rate = rates.get("pass_rate", rates.get("average_score", "N/A"))
+            results.append(f"  {lab_name}: {pass_rate}")
+        else:
+            results.append(f"  {lab_name}: N/A")
+
+    return "\n".join(results)
