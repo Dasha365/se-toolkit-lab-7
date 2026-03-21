@@ -56,17 +56,12 @@ class LLMClient:
             {
                 "role": "system",
                 "content": (
-                    "You are a helpful assistant for a university LMS. "
-                    "You have access to tools that fetch data about labs, students, scores, and analytics. "
-                    "When the user asks a question, use the available tools to get the data. "
-                    "Always call tools when you need data — don't guess. "
-                    "IMPORTANT: For questions that require comparing multiple labs or gathering data from multiple sources, "
-                    "call ALL the tools you need FIRST, then synthesize the results into a final answer. "
-                    "Do NOT give a final answer until you have collected all the necessary data. "
-                    "Keep calling tools until you have enough information to answer completely. "
-                    "Only return a text response (no tool calls) when you are ready with the complete answer. "
-                    "If the user's message is unclear or ambiguous, ask for clarification. "
-                    "If the user greets you, respond warmly and mention what you can help with."
+                    "You are an LMS analytics assistant. You have access to tools that fetch real data. "
+                    "IMPORTANT RULES: "
+                    "1) When asked a question that requires data comparison across multiple labs, call ALL needed tools before responding. "
+                    "2) NEVER respond with text while you still have tool calls to make. "
+                    "3) Only give your final text answer when you have ALL the data you need. "
+                    "4) If you need data from 7 labs, make 7 tool calls first, then answer."
                 ),
             },
             {"role": "user", "content": user_message},
