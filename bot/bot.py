@@ -6,6 +6,7 @@ Usage:
 """
 
 import asyncio
+import inspect
 import sys
 
 from aiogram import Bot, Dispatcher, types
@@ -42,7 +43,7 @@ def run_test_mode(command: str) -> None:
 
     # Call the handler and print the result
     handler = handlers[cmd_name]
-    if asyncio.iscoroutinefunction(handler):
+    if inspect.iscoroutinefunction(handler):
         if cmd_args:
             result = asyncio.run(handler(*cmd_args))
         else:

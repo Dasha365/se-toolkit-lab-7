@@ -35,7 +35,10 @@ async def health() -> str:
     if isinstance(items, str):
         return f"Bot is running. LMS API error: {items}"
 
-    return f"Bot is running. LMS API: connected ({len(items)} items available)."
+    # Count only labs
+    labs = [item for item in items if item.get("type") == "lab"]
+    count = len(labs) if labs else len(items)
+    return f"Bot is running. LMS API: connected ({count} labs available)."
 
 
 async def labs() -> str:
@@ -49,9 +52,13 @@ async def labs() -> str:
     if not items:
         return "No labs available."
 
-    # Format lab list from items
-    lab_names = [item.get("name", item.get("id", "Unknown")) for item in items]
-    return "Available labs:\n" + "\n".join(f"- {name}" for name in lab_names)
+    # Filter by type="lab" and get titles
+    labs = [item for item in items if item.get("type") == "lab"]
+    if not labs:
+        return "No labs found."
+
+    lab_titles = [item.get("title", item.get("name", item.get("id", "Unknown"))) for item in labs]
+    return "Available labs:\n" + "\n".join(f"- {title}" for title in lab_titles)
 
 
 async def scores(lab: str | None = None) -> str:
@@ -67,33 +74,54 @@ async def scores(lab: str | None = None) -> str:
         if isinstance(rates, str):
             return f"Error fetching scores for '{lab}': {rates}"
 
-        # Format pass rates
-        if isinstance(rates, dict):
-            lines = [f"Pass rates for '{lab}':"]
-            for key, value in rates.items():
-                lines.append(f"  {key}: {value}")
+        # Format pass rates as list of tasks with percentages
+        if isinstance(rates, list):
+            lines = [f"Scores for '{lab}':"]
+            for task_data in rates:
+                task_name = task_data.get("task", "Unknown task")
+                avg_score = task_data.get("avg_score", 0)
+                attempts = task_data.get("attempts", 0)
+                lines.append(f"  • {task_name}: {avg_score:.1f}% ({attempts} attempts)")
             return "\n".join(lines)
-        return f"Pass rates for '{lab}': {rates}"
+        elif isinstance(rates, dict):
+            lines = [f"Scores for '{lab}':"]
+            for key, value in rates.items():
+                if isinstance(value, float):
+                    lines.append(f"  • {key}: {value:.1f}%")
+                else:
+                    lines.append(f"  • {key}: {value}")
+            return "\n".join(lines)
+        return f"Scores for '{lab}': {rates}"
 
     # Show all labs' scores
     items = await client.get_items()
     if isinstance(items, str):
         return f"Error fetching labs: {items}"
 
-    if not items:
-        return "No labs available."
+    # Filter by type="lab"
+    labs = [item for item in items if item.get("type") == "lab"]
+    if not labs:
+        return "No labs found."
 
     results = ["Your scores:"]
-    for item in items:
-        lab_id = item.get("id", "unknown")
-        lab_name = item.get("name", lab_id)
+    for item in labs:
+        lab_id = str(item.get("id", "unknown"))
+        lab_title = item.get("title", item.get("name", lab_id))
         rates = await client.get_pass_rates(lab_id)
         if isinstance(rates, str):
-            results.append(f"  {lab_name}: error")
+            results.append(f"  {lab_title}: error")
+        elif isinstance(rates, list) and rates:
+            # Calculate average across all tasks
+            total_score = sum(t.get("avg_score", 0) for t in rates)
+            avg = total_score / len(rates)
+            results.append(f"  {lab_title}: {avg:.1f}% avg")
         elif isinstance(rates, dict):
             pass_rate = rates.get("pass_rate", rates.get("average_score", "N/A"))
-            results.append(f"  {lab_name}: {pass_rate}")
+            if isinstance(pass_rate, (int, float)):
+                results.append(f"  {lab_title}: {pass_rate:.1f}%")
+            else:
+                results.append(f"  {lab_title}: {pass_rate}")
         else:
-            results.append(f"  {lab_name}: N/A")
+            results.append(f"  {lab_title}: N/A")
 
     return "\n".join(results)
