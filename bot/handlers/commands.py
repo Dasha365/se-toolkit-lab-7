@@ -35,10 +35,7 @@ async def health() -> str:
     if isinstance(items, str):
         return f"Bot is running. LMS API error: {items}"
 
-    # Count only labs
-    labs = [item for item in items if item.get("type") == "lab"]
-    count = len(labs) if labs else len(items)
-    return f"Bot is running. LMS API: connected ({count} labs available)."
+    return f"Backend is healthy. {len(items)} items available."
 
 
 async def labs() -> str:

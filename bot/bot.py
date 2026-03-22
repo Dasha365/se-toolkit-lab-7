@@ -7,54 +7,66 @@ Usage:
 
 import asyncio
 import inspect
+import ssl
 import sys
 
+import aiohttp
 from aiogram import Bot, Dispatcher, types
+from aiogram.client.default import DefaultBotProperties
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.filters import Command, CommandStart
 
 from config import settings
 from handlers.commands import start, help, health, labs, scores
+from handlers.router import route
 
 
 def run_test_mode(command: str) -> None:
-    """Run a command in test mode - calls handler directly, prints result.
+    """Run a command or message in test mode - calls handler directly, prints result.
 
     Args:
-        command: The command to test, e.g. "/start" or "/scores lab1"
+        command: The command or message to test, e.g. "/start" or "which lab is hardest"
     """
-    # Strip leading slash and parse arguments
-    parts = command.lstrip("/").split()
-    cmd_name = parts[0]
-    cmd_args = parts[1:] if len(parts) > 1 else []
+    # Check if it's a command (starts with /)
+    if command.startswith("/"):
+        # Strip leading slash and parse arguments
+        parts = command.lstrip("/").split()
+        cmd_name = parts[0]
+        cmd_args = parts[1:] if len(parts) > 1 else []
 
-    # Map command names to handler functions
-    handlers = {
-        "start": start,
-        "help": help,
-        "health": health,
-        "labs": labs,
-        "scores": scores,
-    }
+        # Map command names to handler functions
+        handlers = {
+            "start": start,
+            "help": help,
+            "health": health,
+            "labs": labs,
+            "scores": scores,
+        }
 
-    if cmd_name not in handlers:
-        print(f"Unknown command: /{cmd_name}")
-        print(f"Available commands: {', '.join('/' + name for name in handlers)}")
-        sys.exit(0)
+        if cmd_name not in handlers:
+            print(f"Unknown command: /{cmd_name}")
+            print(f"Available commands: {', '.join('/' + name for name in handlers)}")
+            sys.exit(0)
 
-    # Call the handler and print the result
-    handler = handlers[cmd_name]
-    if inspect.iscoroutinefunction(handler):
-        if cmd_args:
-            result = asyncio.run(handler(*cmd_args))
+        # Call the handler and print the result
+        handler = handlers[cmd_name]
+        if inspect.iscoroutinefunction(handler):
+            if cmd_args:
+                result = asyncio.run(handler(*cmd_args))
+            else:
+                result = asyncio.run(handler())
         else:
-            result = asyncio.run(handler())
+            if cmd_args:
+                result = handler(*cmd_args)
+            else:
+                result = handler()
+
+        print(result)
     else:
-        if cmd_args:
-            result = handler(*cmd_args)
-        else:
-            result = handler()
+        # Plain text message - use the LLM router
+        result = asyncio.run(route(command))
+        print(result)
 
-    print(result)
     sys.exit(0)
 
 
@@ -88,13 +100,34 @@ async def cmd_scores(message: types.Message) -> None:
     await message.answer(result)
 
 
+async def handle_text_message(message: types.Message) -> None:
+    """Handle plain text messages via LLM router."""
+    result = await route(message.text)
+    await message.answer(result)
+
+
 async def run_telegram_bot() -> None:
     """Run the Telegram bot with aiogram."""
     if not settings.BOT_TOKEN:
         print("Error: BOT_TOKEN not set in .env.bot.secret")
         sys.exit(1)
 
-    bot = Bot(token=settings.BOT_TOKEN)
+    # Create SSL context that disables verification
+    ssl_context = ssl.create_default_context()
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+
+    # Create connector with custom SSL context
+    connector = aiohttp.TCPConnector(ssl=ssl_context)
+
+    # Create session with connector factory
+    session = AiohttpSession(connector=lambda: connector)
+
+    bot = Bot(
+        token=settings.BOT_TOKEN,
+        session=session,
+        default=DefaultBotProperties(parse_mode="HTML"),
+    )
     dp = Dispatcher()
 
     # Register command handlers
@@ -104,6 +137,9 @@ async def run_telegram_bot() -> None:
     dp.message.register(cmd_health, Command("health"))
     dp.message.register(cmd_labs, Command("labs"))
     dp.message.register(cmd_scores, Command("scores"))
+
+    # Register plain text message handler (catches all non-command messages)
+    dp.message.register(handle_text_message)
 
     print("Bot is starting...")
     await dp.start_polling(bot)
