@@ -122,12 +122,12 @@ async def handle_text_message(message: types.Message) -> None:
 
 async def handle_callback_query(callback_query: types.CallbackQuery) -> None:
     """Handle inline keyboard button clicks.
-    
+
     Args:
         callback_query: The callback query from the button click
     """
     data = callback_query.data
-    
+
     # Map callback data to handler functions
     handlers = {
         "labs": labs,
@@ -135,18 +135,18 @@ async def handle_callback_query(callback_query: types.CallbackQuery) -> None:
         "scores": scores,
         "top_students": scores,  # Top students uses scores handler
     }
-    
+
     if data not in handlers:
         await callback_query.answer("Unknown action", show_alert=True)
         return
-    
+
     # Call the handler
     handler = handlers[data]
     if inspect.iscoroutinefunction(handler):
         result = await handler()
     else:
         result = handler()
-    
+
     # Send the result as a new message
     await callback_query.message.answer(result)
     # Acknowledge the callback
@@ -160,19 +160,8 @@ async def run_telegram_bot() -> None:
         sys.exit(1)
 
     # Create SSL context that disables verification
-    ssl_context = ssl.create_default_context()
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
-
-    # Create connector with custom SSL context
-    connector = aiohttp.TCPConnector(ssl=ssl_context)
-
-    # Create session with connector factory
-    session = AiohttpSession(connector=lambda: connector)
-
     bot = Bot(
         token=settings.BOT_TOKEN,
-        session=session,
         default=DefaultBotProperties(parse_mode="HTML"),
     )
     dp = Dispatcher()

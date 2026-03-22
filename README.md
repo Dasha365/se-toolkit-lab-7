@@ -92,6 +92,71 @@ By the end of this lab, you should be able to say:
 3. [Intent-Based Natural Language Routing](./lab/tasks/required/task-3.md) — P1: LLM tool use
 4. [Containerize and Document](./lab/tasks/required/task-4.md) — P3: containerize + deploy
 
+## Deploy
+
+### Required environment variables
+
+Create or update `.env.bot.secret` with the following variables:
+
+| Variable | Description |
+|----------|-------------|
+| `BOT_TOKEN` | Telegram bot token from [@BotFather](https://t.me/BotFather) |
+| `LMS_API_KEY` | API key for the LMS backend (same as backend's `LMS_API_KEY`) |
+| `LLM_API_KEY` | API key for the LLM service |
+| `LLM_API_MODEL` | Model name to use (e.g., `gpt-4o`, `llama-3.1-8b`) |
+
+The bot also uses these environment variables (set in `docker-compose.yml`):
+
+| Variable | Value |
+|----------|-------|
+| `LMS_API_BASE_URL` | `http://backend:8000` (uses Docker service name) |
+| `LLM_API_BASE_URL` | `http://host.docker.internal:42005/v1` (reaches LLM on host) |
+
+### Build and start
+
+```bash
+# Build and start all services (backend + bot + postgres + caddy)
+docker compose up -d --build
+
+# View bot logs
+docker compose logs -f bot
+
+# Check if bot is running
+docker compose ps bot
+```
+
+### Verify deployment
+
+```bash
+# Check bot container is healthy
+docker compose ps bot
+
+# View bot logs for startup messages
+docker compose logs bot | tail -20
+
+# Test the bot in Telegram — open a chat with your bot and:
+# 1. Send /start — should show welcome message with inline keyboard
+# 2. Click "🏥 Health Check" — should report backend status
+# 3. Click "📋 Labs" — should list available labs
+# 4. Type "show me lab 04 scores" — should fetch scores via LLM
+```
+
+### Troubleshooting
+
+```bash
+# If bot fails to start, check logs for errors
+docker compose logs bot
+
+# Restart bot service only
+docker compose restart bot
+
+# Rebuild bot image
+docker compose build bot
+
+# Check network connectivity to backend
+docker compose exec bot curl -sf http://backend:8000/health
+```
+
 ### Optional
 
 1. [Flutter Web Chatbot](./lab/tasks/optional/task-1.md)
