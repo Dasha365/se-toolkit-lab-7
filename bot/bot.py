@@ -15,6 +15,7 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.filters import Command, CommandStart
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from config import settings
 from handlers.commands import start, help, health, labs, scores
@@ -71,8 +72,21 @@ def run_test_mode(command: str) -> None:
 
 
 async def cmd_start(message: types.Message) -> None:
-    """Handle /start command."""
-    await message.answer(start())
+    """Handle /start command with inline keyboard."""
+    # Create inline keyboard with 4 buttons
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="📋 Labs", callback_data="labs"),
+                InlineKeyboardButton(text="🏥 Health Check", callback_data="health"),
+            ],
+            [
+                InlineKeyboardButton(text="📊 Scores Lab 04", callback_data="scores"),
+                InlineKeyboardButton(text="🏆 Top Students", callback_data="top_students"),
+            ],
+        ],
+    )
+    await message.answer(start(), reply_markup=keyboard)
 
 
 async def cmd_help(message: types.Message) -> None:
@@ -104,6 +118,39 @@ async def handle_text_message(message: types.Message) -> None:
     """Handle plain text messages via LLM router."""
     result = await route(message.text)
     await message.answer(result)
+
+
+async def handle_callback_query(callback_query: types.CallbackQuery) -> None:
+    """Handle inline keyboard button clicks.
+    
+    Args:
+        callback_query: The callback query from the button click
+    """
+    data = callback_query.data
+    
+    # Map callback data to handler functions
+    handlers = {
+        "labs": labs,
+        "health": health,
+        "scores": scores,
+        "top_students": scores,  # Top students uses scores handler
+    }
+    
+    if data not in handlers:
+        await callback_query.answer("Unknown action", show_alert=True)
+        return
+    
+    # Call the handler
+    handler = handlers[data]
+    if inspect.iscoroutinefunction(handler):
+        result = await handler()
+    else:
+        result = handler()
+    
+    # Send the result as a new message
+    await callback_query.message.answer(result)
+    # Acknowledge the callback
+    await callback_query.answer()
 
 
 async def run_telegram_bot() -> None:
@@ -140,6 +187,9 @@ async def run_telegram_bot() -> None:
 
     # Register plain text message handler (catches all non-command messages)
     dp.message.register(handle_text_message)
+
+    # Register callback query handler for inline keyboard buttons
+    dp.callback_query.register(handle_callback_query)
 
     print("Bot is starting...")
     await dp.start_polling(bot)
